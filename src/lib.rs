@@ -1,13 +1,14 @@
 #![feature(trait_alias)]
 use std::{borrow::{Borrow, BorrowMut}, sync::Arc};
-
 use async_trait::async_trait;
-use simplesocket::{connect_socket, message::ConnectedResponse};
-use subs::{GeneralUpdate, GeneralUpdateLocation};
-use user::UserRef;
-mod subs;
-mod user;
-mod group;
+use serde_json::Value;
+use simplesocket::{connect_socket, message::ConnectedResponse, context::Subscriber};
+use model::{user::User, post::{Post, PostId}, id::hex_id};
+use subscriptions::general_update::{GeneralUpdate, GeneralUpdateLocation, GeneralUpdateEvent};
+use url::Url;
+mod subscriptions;
+mod model;
+use lazy_static::lazy_static;
 
 #[derive(Clone)]
 pub struct Context {
@@ -15,36 +16,70 @@ pub struct Context {
 	pub client: Arc<reqwest::Client>,
 }
 
+lazy_static! {
+    static ref BASE_API_URL: Url = Url::parse("https://photop.exotek.co").unwrap();
+}
 
 impl Context {
 	pub fn me(&self) {
 		
 	}
+	pub async fn get_post(&self, id: PostId) -> Result<Post, reqwest::Error> {
+		let mut url = BASE_API_URL.join("posts").unwrap();
+		url.query_pairs_mut().append_pair("postid", serde_json::to_value(id).unwrap().as_str().unwrap());
+		let val = self.client.get(url).send().await?.json::<serde_json::Value>().await?;
+		println!("{:#?}", val);
+		todo!();
+		// let post: Post = serde_json::from_value(val).unwrap();
+		// return Ok(post);
+	}
 }
-
 
 struct SimpleSocketEvents {
 	auth: Auth,
 	callback: Option<Box<dyn Fn(Context) + Send + Sync + 'static>>,
 }
 
+fn a(t: &mut Vec<Box<dyn Fn(Context) + Send + Sync + 'static>>, cb: impl Fn(Context) + Send + Sync + 'static) {
+	t.push(Box::new(cb));
+}
+
+struct GeneralUpdateSubscriber {
+	ctx: Arc<Context>,
+}
+
+impl Subscriber for GeneralUpdateSubscriber {
+	fn callback(&self, event: Value){
+		let event: GeneralUpdateEvent = serde_json::from_value(event).unwrap();
+		match event {
+			GeneralUpdateEvent::NewPostAdded(post) => {
+				let ctx = self.ctx.clone();
+				tokio::spawn(async move {
+					let post = ctx.get_post(post.post_id).await.unwrap();
+					println!("{:?}", post.content);
+				});
+			}
+			_ => {}
+		}
+	}
+}
+
 #[async_trait]
 impl simplesocket::Events for SimpleSocketEvents {
-	async fn on_ready(&mut self, ctx: simplesocket::context::Dispatch, res: ConnectedResponse) {
+	async fn on_ready(&self, ctx: Arc<simplesocket::context::Context>, res: ConnectedResponse) {
 		let ctx = Context {
-			simplesocket: ctx.0,
+			simplesocket: ctx,
 			client: Arc::new(reqwest::Client::new()),
 		};
 		let ss = ctx.clone().simplesocket;
+		
 		ss.subscribe(GeneralUpdate{
 			location: GeneralUpdateLocation::Home,
 			groups: vec![],
-		}, |event|{
-			println!("POST {:?}", event);
-		}).await;
-		(self.callback.take().unwrap())(ctx);
+		}, GeneralUpdateSubscriber{ctx: Arc::new(ctx)}).await;
+		// (self.callback.as_ref().unwrap())(ctx);
 	}
-	async fn on_close(&mut self, _ctx: simplesocket::context::Dispatch) {
+	async fn on_close(&self, _ctx: Arc<simplesocket::context::Context>) {
         println!("closed");
     }
 }
@@ -61,15 +96,9 @@ enum Auth {
 	None,
 }
 
-struct Message {
-	author: UserRef,
-	content: String,
-
-}
-
 #[async_trait]
 trait PhotopEvents {
-	fn on_post(&mut self, context: Context, message: Message) {
+	fn on_post(&mut self, context: Context, post: Post) {
 		
 	}
 }

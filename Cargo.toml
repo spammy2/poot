@@ -8,9 +8,14 @@ license-file = "LICENSE.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-simplesocket = { version = "0.1.0" }
+# simplesocket = { version = "0.1.0" }
+simplesocket = { path = "../simplesocket" }
 tokio = { version = "1.16.1", features = ["full"] }
-reqwest = "0.11.11"
+reqwest = { version = "0.11.11", features = ["json"]}
 async-trait = "0.1.56"
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
+chrono = {version = "0.4.9", features = ["serde"]}
+url = "2.2.2"
+lazy_static = "1.4.0"
+futures-util = "0.3.21"
