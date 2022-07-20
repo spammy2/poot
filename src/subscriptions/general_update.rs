@@ -16,7 +16,7 @@ pub struct GeneralUpdate {
 	pub groups: Vec<GroupId>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize,Debug)]
 pub struct NewPostAdded {
 	#[serde(rename = "Timestamp")]
 	pub timestamp: u64,
@@ -26,6 +26,7 @@ pub struct NewPostAdded {
 	pub post_id: PostId,
 }
 
+#[derive(Debug)]
 pub enum GeneralUpdateEvent {
 	NewPostAdded(NewPostAdded)
 }
