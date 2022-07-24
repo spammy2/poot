@@ -1,5 +1,9 @@
+use std::sync::Arc;
+
 use serde::{Serialize, Deserialize, de::Error};
-use crate::model::{group::GroupId, user::UserId, post::PostId};
+use serde_json::Value;
+use simplesocket::context::Subscriber;
+use crate::{model::{group::GroupId, user::UserId, post::PostId}, Context};
 
 #[derive(Serialize)]
 pub enum GeneralUpdateLocation {
@@ -45,4 +49,24 @@ impl<'de> Deserialize<'de> for GeneralUpdateEvent {
 			_ => Err(Error::custom("Not a valid type"))
 		}
     }
+}
+
+pub (crate) struct GeneralUpdateSubscriber {
+	pub ctx: Arc<Context>,
+}
+
+impl Subscriber for GeneralUpdateSubscriber {
+	fn callback(&self, event: Value){
+		let event: GeneralUpdateEvent = serde_json::from_value(event).unwrap();
+		match event {
+			GeneralUpdateEvent::NewPostAdded(post) => {
+				let ctx = self.ctx.clone();
+				tokio::spawn(async move {
+					let post = ctx.get_post(post.post_id).await.unwrap();
+					ctx.events.on_post(ctx.clone(), post);
+				});
+			}
+			_ => {println!("Unknnown event: {:?}", event);}
+		}
+	}
 }

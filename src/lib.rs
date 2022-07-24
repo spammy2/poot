@@ -1,22 +1,27 @@
 #![feature(trait_alias)]
-use std::{borrow::{Borrow, BorrowMut}, sync::Arc};
+
+mod subscriptions;
+mod model;
+
+use std::{sync::Arc, collections::HashMap};
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::Value;
-use simplesocket::{connect_socket, message::ConnectedResponse, context::Subscriber};
-use model::{user::{User, UserRaw}, post::{Post, PostId, PostRaw}, id::hex_id};
-use subscriptions::general_update::{GeneralUpdate, GeneralUpdateLocation, GeneralUpdateEvent};
+use simplesocket::{connect_socket, message::ConnectedResponse};
+use model::{user::UserRaw, client_user::ClientUser, post::{Post, PostId, PostRaw}, group::RawGroup};
+use subscriptions::general_update::*;
 use url::Url;
-mod subscriptions;
 use lazy_static::lazy_static;
 
-mod model;
+use crate::model::client_user::ClientUserRaw;
+
 
 #[derive(Clone)]
 pub struct Context {
 	simplesocket: Arc<simplesocket::Context>,
 	pub client: Arc<reqwest::Client>,
 	events: Arc<dyn Events + Send + Sync>,
+	auth: Auth,
 }
 
 lazy_static! {
@@ -24,18 +29,32 @@ lazy_static! {
 }
 
 impl Context {
-	pub fn me(&self) {
-		let mut url = BASE_API_URL.join("temp/signin").unwrap();
+	pub async fn me(&self) -> Result<ClientUser, reqwest::Error> {
+		#[derive(Deserialize)]
+		struct GetResponse {
+			groups: HashMap<String,RawGroup>,
+			user: ClientUserRaw,
+		}
+
+		let mut url = BASE_API_URL.join("me").unwrap();
 		url.query_pairs_mut().append_pair("ss", &self.simplesocket.get_secure_id()[..]);
+		let val = self.client.get(url)
+			.header("auth", self.auth.to_string())
+			.send().await?.json::<GetResponse>().await?;
+		todo!();
+		// Ok(ClientUser{
+
+		// })
 	}
 	pub async fn get_post(&self, id: PostId) -> Result<Post, reqwest::Error> {
-		let mut url = BASE_API_URL.join("posts").unwrap();
-		url.query_pairs_mut().append_pair("postid", serde_json::to_value(id).unwrap().as_str().unwrap());
 		#[derive(Deserialize)]
 		struct GetResponse {
 			users: Vec<UserRaw>,
 			posts: Vec<PostRaw>,
 		}
+
+		let mut url = BASE_API_URL.join("posts").unwrap();
+		url.query_pairs_mut().append_pair("postid", serde_json::to_value(id).unwrap().as_str().unwrap());
 
 		let val = self.client.get(url).send().await?.json::<GetResponse>().await?;
 
@@ -56,52 +75,37 @@ struct InitOptions {
 	events: Arc<dyn Events + Send + Sync>
 }
 
-struct GeneralUpdateSubscriber {
-	ctx: Arc<Context>,
-}
-
-impl Subscriber for GeneralUpdateSubscriber {
-	fn callback(&self, event: Value){
-		let event: GeneralUpdateEvent = serde_json::from_value(event).unwrap();
-		match event {
-			GeneralUpdateEvent::NewPostAdded(post) => {
-				let ctx = self.ctx.clone();
-				tokio::spawn(async move {
-					let post = ctx.get_post(post.post_id).await.unwrap();
-					ctx.events.on_post(ctx.clone(), post);
-				});
-			}
-			_ => {println!("Unknnown event: {:?}", event);}
-		}
-	}
-}
-
 #[async_trait]
 impl simplesocket::Events for InitOptions {
 	async fn on_ready(&self, ctx: Arc<simplesocket::context::Context>, res: ConnectedResponse) {
-		let ctx = Context {
+		let ctx = Arc::new(Context {
 			simplesocket: ctx,
 			client: Arc::new(reqwest::Client::new()),
 			events: self.events.clone(),
-		};
-		let ss = ctx.clone().simplesocket;
+			auth: self.auth.clone(),
+		});
+
+		let ss = ctx.simplesocket.clone();
+		
 		
 		ss.subscribe(GeneralUpdate{
 			location: GeneralUpdateLocation::Home,
 			groups: vec![],
-		}, GeneralUpdateSubscriber{ctx: Arc::new(ctx)}).await;
-		// (self.callback.as_ref().unwrap())(ctx);
+		}, GeneralUpdateSubscriber{ctx: ctx.clone()}).await;
+
+		self.events.on_ready(ctx).await;
 	}
 	async fn on_close(&self, _ctx: Arc<simplesocket::context::Context>) {
         println!("closed");
     }
 }
 
+#[derive(Clone)]
 pub enum Auth {
-	Username{
-		username: String,
-		password: String,
-	},
+	// Username{
+	// 	username: String,
+	// 	password: String,
+	// },
 	Token {
 		user_id: String,
 		token: String,
@@ -109,10 +113,20 @@ pub enum Auth {
 	None,
 }
 
+impl ToString for Auth {
+	fn to_string(&self) -> String {
+		match self {
+			Auth::Token { user_id, token } => format!("{};{}", user_id, token),
+			Auth::None => panic!("Auth none"),
+		}
+	}
+}
 
+
+#[async_trait]
 pub trait Events {
-	fn on_post(&self, context: Arc<Context>, post: Post);
-	fn on_ready(&self, context: Arc<Context>);
+	async fn on_post(&self, context: Arc<Context>, post: Post);
+	async fn on_ready(&self, context: Arc<Context>);
 }
 
 pub struct Client;
@@ -125,20 +139,31 @@ impl Client {
 	}
 }
 
-struct BotEvents;
-impl Events for BotEvents {
-	fn on_post(&self, context: Arc<Context>, post: Post) {
-		println!("{:?}", post);
-	}
-	fn on_ready(&self, context: Arc<Context>) {
-		println!("ready");
-	}
-}
+#[cfg(test)]
+mod test {
+	use super::*;
+	use dotenv::dotenv;
+	use std::env;
 
-#[tokio::test]
-async fn test(){
-	Client::new(
-		Auth::Token { user_id: "".to_owned(), token: "".to_owned() },
-		BotEvents{},
-	).await;
+	struct BotEvents;
+	#[async_trait]
+	impl Events for BotEvents {
+		async fn on_post(&self, context: Arc<Context>, post: Post) {
+			println!("{:?}", post);
+		}
+		async fn on_ready(&self, context: Arc<Context>) {
+			println!("ready");
+			let e = context.me().await;
+			println!("finished");
+		}
+	}
+
+	#[tokio::test]
+	pub async fn test(){
+		dotenv().ok();
+		let client = Client::new(
+			Auth::Token { user_id: env::var("USER_ID").unwrap(), token: env::var("TOKEN").unwrap() },
+			BotEvents{},
+		).await;
+	}
 }
