@@ -13,10 +13,10 @@ impl Events for BotEvents {
             .create_post(CreatePostBody::from(String::from("bread")))
             .await;
         match result {
-            Ok(post) => {
+            Ok(_post) => {
                 println!("Post successfully creative")
             }
-            Err(err) => {
+            Err(_err) => {
                 println!("not successful :(")
             }
         }

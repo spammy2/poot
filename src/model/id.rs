@@ -65,8 +65,6 @@ pub type GroupId = Id<Group>;
 pub type PostId = Id<Post>;
 
 pub mod hex_id {
-    use std::num::ParseIntError;
-
     use serde::de::Visitor;
     use serde::Deserializer;
     use serde::Serializer;

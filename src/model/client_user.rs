@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use super::{group::Group, id::UserId, status::Status};
 use chrono::{serde::ts_milliseconds, DateTime, Utc};
 use serde::Deserialize;

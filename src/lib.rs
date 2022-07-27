@@ -7,16 +7,12 @@ mod subscriptions;
 use async_trait::async_trait;
 use context::Context;
 use model::{
-    client_user::{ClientUser, ClientUserRaw},
-    group::RawGroup,
-    id::{GroupId, PostId, UserId},
-    post::{Post, PostRaw},
-    user::UserRaw,
+    post::{Post},
 };
-use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+
+
 use simplesocket::{connect_socket, message::ConnectedResponse};
-use std::{collections::HashMap, sync::Arc};
+use std::{sync::Arc};
 use subscriptions::general_update::*;
 struct InitOptions {
     auth: Auth,
@@ -25,7 +21,7 @@ struct InitOptions {
 
 #[async_trait]
 impl simplesocket::Events for InitOptions {
-    async fn on_ready(&self, ctx: Arc<simplesocket::context::Context>, res: ConnectedResponse) {
+    async fn on_ready(&self, ctx: Arc<simplesocket::context::Context>, _res: ConnectedResponse) {
         let ctx = Arc::new(Context {
             simplesocket: ctx,
             client: Arc::new(reqwest::Client::new()),
@@ -72,10 +68,10 @@ impl ToString for Auth {
 
 #[async_trait]
 pub trait Events {
-    async fn on_post(&self, context: Arc<Context>, post: Post) {
+    async fn on_post(&self, _context: Arc<Context>, _post: Post) {
         // ...
     }
-    async fn on_ready(&self, context: Arc<Context>) {
+    async fn on_ready(&self, _context: Arc<Context>) {
         // ...
     }
 }
@@ -106,7 +102,7 @@ mod test {
     struct BotEvents;
     #[async_trait]
     impl Events for BotEvents {
-        async fn on_post(&self, context: Arc<Context>, post: Post) {
+        async fn on_post(&self, _context: Arc<Context>, post: Post) {
             println!("{:?}", post);
         }
         async fn on_ready(&self, context: Arc<Context>) {
@@ -126,7 +122,7 @@ mod test {
     #[tokio::test]
     pub async fn test() {
         dotenv().ok();
-        let client = Client::new(
+        let _client = Client::new(
             Auth::Token {
                 user_id: env::var("USER_ID").unwrap(),
                 token: env::var("TOKEN").unwrap(),

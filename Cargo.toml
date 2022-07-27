@@ -1,6 +1,6 @@
 [package]
 name = "poot"
-version = "0.1.0"
+version = "0.1.1"
 description="API wrapper for Photop."
 edition = "2021"
 license-file = "LICENSE.md"
@@ -8,8 +8,8 @@ license-file = "LICENSE.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# simplesocket = { version = "0.1.0" }
-simplesocket = { path = "../simplesocket" }
+simplesocket = { version = "1.0.0" }
+# simplesocket = { path = "../simplesocket" }
 tokio = { version = "1.16.1", features = ["full"] }
 reqwest = { version = "0.11.11", features = ["json", "multipart"]}
 async-trait = "0.1.56"

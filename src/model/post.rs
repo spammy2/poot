@@ -1,12 +1,9 @@
-use std::fmt::Display;
-
-use super::id::hex_id;
 use super::{
     id::{PostId, UserId},
     user::User,
 };
 use chrono::{serde::ts_milliseconds, DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize};
 #[derive(Debug)]
 pub struct Post {
     pub id: PostId,

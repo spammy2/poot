@@ -1,4 +1,4 @@
-use serde::{de::Visitor, Deserialize};
+use serde::{Deserialize};
 
 #[derive(Deserialize, Debug)]
 pub enum Role {

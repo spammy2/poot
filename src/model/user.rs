@@ -1,8 +1,8 @@
-use std::fmt::Display;
+
 
 use serde::Deserialize;
 
-use super::id::{hex_id, UserId};
+use super::id::{UserId};
 use super::role::{Role, RoleOrRoles};
 
 #[derive(Debug)]
