@@ -213,8 +213,12 @@ impl ToString for Auth {
 
 #[async_trait]
 pub trait Events {
-	async fn on_post(&self, context: Arc<Context>, post: Post);
-	async fn on_ready(&self, context: Arc<Context>);
+	async fn on_post(&self, context: Arc<Context>, post: Post) {
+		// ...
+	}
+	async fn on_ready(&self, context: Arc<Context>) {
+		// ...
+	}
 }
 
 pub struct Client;
