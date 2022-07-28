@@ -14,7 +14,7 @@ impl super::Context {
         let mut url = BASE_API_URL.join("posts").unwrap();
         url.query_pairs_mut().append_pair(
             "postid",
-            serde_json::to_value(id).unwrap().as_str().unwrap(),
+            &id.to_string(),
         );
 
         let val = self

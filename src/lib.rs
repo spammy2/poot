@@ -5,15 +5,15 @@ mod model;
 mod subscriptions;
 
 use async_trait::async_trait;
-use context::Context;
+use context::{Context, Subscriptions};
 use model::{
-    post::{Post},
+    post::{Post}, chat::Chat,
 };
 
 
 use serde::{Serialize};
 use simplesocket::{connect_socket, message::ConnectedResponse};
-use std::{sync::Arc};
+use std::{sync::{Arc, Mutex, Weak}, cell::RefCell};
 use subscriptions::general_update::*;
 struct InitOptions {
     auth: Auth,
@@ -22,26 +22,35 @@ struct InitOptions {
 
 #[async_trait]
 impl simplesocket::Events for InitOptions {
-    async fn on_ready(&self, ctx: Arc<simplesocket::context::Context>, _res: ConnectedResponse) {
+    async fn on_ready(&self, ss: Arc<simplesocket::context::Context>, _res: ConnectedResponse) {
+		let ctx_ref = Arc::new(Mutex::new(None));
+		
         let ctx = Context {
-            simplesocket: ctx,
-            client: Arc::new(reqwest::Client::new()),
+			subscriptions: Subscriptions {
+				general_update: ss.subscribe(
+					GeneralUpdate {
+						location: GeneralUpdateLocation::Home,
+						groups: vec![],
+						auth: self.auth.clone(),
+					},
+					GeneralUpdateSubscriber { ctx: ctx_ref.clone() },
+				)
+				.await
+			},
+            simplesocket: ss,
+            client: reqwest::Client::new(),
             events: self.events.clone(),
             auth: self.auth.clone(),
+			posts: Arc::new(Mutex::new(Vec::new())),
         };
 
-        let ss = ctx.simplesocket.clone();
-
-		println!("subscribing ss");
-        ss.subscribe(
-            GeneralUpdate {
-                location: GeneralUpdateLocation::Home,
-                groups: vec![],
-				auth: self.auth.clone(),
-            },
-            GeneralUpdateSubscriber { ctx: ctx.clone() },
-        )
-        .await;
+		let _ctx = ctx.clone();
+		{
+			// god fucking kill me please
+			let mut lock = ctx_ref.lock().unwrap();
+			lock.replace(_ctx);
+			drop(lock);
+		}
 
         self.events.on_ready(ctx).await;
     }
@@ -87,6 +96,9 @@ pub trait Events {
     async fn on_ready(&self, _context: Context) {
         // ...
     }
+	async fn on_chat(&self, _context: Context, _chat: Chat) {
+		// ...
+	}
 }
 
 pub struct Client;
@@ -106,8 +118,6 @@ impl Client {
 
 #[cfg(test)]
 mod test {
-    use crate::context::create_post::CreatePostBody;
-
     use super::*;
     use dotenv::dotenv;
     use std::env;
@@ -116,6 +126,7 @@ mod test {
     #[async_trait]
     impl Events for BotEvents {
         async fn on_post(&self, ctx: Context, post: Post) {
+			post.connect(&ctx).await.unwrap();
             if post.content == "test create post" {
 				let p = post.create_chat(&ctx, "test receive message".to_owned()).await;
 				match p {

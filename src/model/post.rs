@@ -1,4 +1,4 @@
-use crate::context::{Context, create_chat::CreateChatBody};
+use crate::context::{Context, create_chat::CreateChatBody, connect_post::{ConnectPostError, ConnectPostResponse}};
 
 use super::{
     id::{PostId, UserId, ChatId},
@@ -14,11 +14,14 @@ pub struct Post {
 }
 
 impl Post {
+	pub async fn connect(&self, context: &Context) -> Result<ConnectPostResponse, ConnectPostError> {
+		context.connect_post(self.id).await
+	}
 	/// Panics if the client is not authenticated.
 	pub async fn create_chat(&self, ctx: &Context, content: String) -> Result<ChatId, reqwest::Error> {
 		ctx.create_chat(CreateChatBody {
 			content,
-			post_id: self.id.clone(),
+			post_id: self.id,
 		}).await
 	}
 }

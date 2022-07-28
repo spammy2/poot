@@ -68,6 +68,8 @@ impl<T> Clone for Id<T> {
     }
 }
 
+impl<T> Copy for Id<T> {}
+
 impl<T> Id<T> {
     pub fn get_date(&self) -> chrono::DateTime<chrono::Utc> {
         date_from_u64(self.id)
@@ -97,8 +99,6 @@ impl<T> From<&str> for Id<T> {
         }
     }
 }
-
-
 
 pub type UserId = Id<User>;
 pub type GroupId = Id<Group>;

@@ -1,12 +1,14 @@
-use chrono::{DateTime, Utc};
+use chrono::{serde::ts_milliseconds, DateTime, Utc};
+use serde::Deserialize;
 
-use super::{id::ChatId, user::User};
+use super::{id::{ChatId, UserId, PostId}, user::User};
 
 pub struct Chat {
 	pub id: ChatId,
 	pub content: String,
 	pub author: User,
 	pub created_at: DateTime<Utc>,
+	pub post_id: PostId,
 }
 
 impl PartialEq for Chat {
@@ -14,3 +16,22 @@ impl PartialEq for Chat {
 		self.id == other.id
 	}
 }
+
+#[derive(Deserialize)]
+pub struct ChatRaw {
+	#[serde(rename = "_id")]
+	pub id: ChatId,
+
+	#[serde(rename = "Text")]
+	pub content: String,
+
+	#[serde(rename = "UserID")]
+	pub author: UserId,
+
+	#[serde(rename = "Timestamp", with = "ts_milliseconds")]
+	pub created_at: DateTime<Utc>,
+
+	#[serde(rename = "PostID")]
+	pub post_id: PostId,
+}
+
