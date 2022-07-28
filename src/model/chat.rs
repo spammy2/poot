@@ -11,6 +11,18 @@ pub struct Chat {
 	pub post_id: PostId,
 }
 
+impl Chat {
+	pub fn from_raw(raw: ChatRaw, user: User) -> Chat {
+		Chat {
+			id: raw.id,
+			content: raw.content,
+			author: user,
+			created_at: raw.created_at,
+			post_id: raw.post_id,
+		}
+	}
+}
+
 impl PartialEq for Chat {
 	fn eq(&self, other: &Self) -> bool {
 		self.id == other.id

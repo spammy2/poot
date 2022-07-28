@@ -5,13 +5,13 @@ use crate::model::{id::{PostId, ChatId}, post::Post, chat::Chat};
 
 use super::BASE_API_URL;
 
-pub struct CreateChatBody {
-    pub content: String,
+pub struct CreateChatBody<'a> {
+    pub content: &'a str,
     pub post_id: PostId,
 }
 
 impl super::Context {
-    pub(crate) async fn create_chat(&self, body: CreateChatBody) -> Result<ChatId, reqwest::Error> {
+    pub(crate) async fn create_chat(&self, body: CreateChatBody<'_>) -> Result<ChatId, reqwest::Error> {
         let mut chat_url = BASE_API_URL.join("chats/new").unwrap();
 		chat_url
 			.query_pairs_mut()
@@ -21,6 +21,7 @@ impl super::Context {
             .client
             .post(chat_url)
             .header("auth", self.auth.to_string())
+			.header("content-type", "text/plain") // ????
             .body(serde_json::to_string(&json!({
 				"text": body.content,
 			})).unwrap())
@@ -28,6 +29,7 @@ impl super::Context {
             .await?
             .text()
             .await?;
+		println!("{}", chat_id);
 		Ok(ChatId::from(&chat_id[..]))
     }
 }

@@ -20,8 +20,9 @@ pub struct ConnectPostResponse {
 }
 
 async fn connect_post(ctx: &Context, posts: &Vec<PostId>) -> Result<ConnectPostResponse, reqwest::Error> {
-	Ok(ctx.client.post(BASE_API_URL.join("chats/connect").unwrap())
+	let res = ctx.client.post(BASE_API_URL.join("chats/connect").unwrap())
 	.header("auth", ctx.auth.to_string())
+	.header("content-type", "text/plain") // ????
 	.body(serde_json::to_string(&json!({
 		"ssid": ctx.simplesocket.get_secure_id(),
 		"connect": posts,
@@ -29,13 +30,17 @@ async fn connect_post(ctx: &Context, posts: &Vec<PostId>) -> Result<ConnectPostR
 	})).unwrap())
 	.send()
 	.await?
+	// .text()
 	.json::<ConnectPostResponse>()
-	.await?)
+	.await?;
+	// println!("response is {}", res);
+	// todo!("not done");
+	Ok(res)
 }
 
 impl Context {
 	/// Errors if the connected posts exceeds 10
-	pub async fn connect_post(&self, post: PostId) -> Result<ConnectPostResponse,ConnectPostError> {
+	pub(crate) async fn connect_post(&self, post: PostId) -> Result<ConnectPostResponse,ConnectPostError> {
 		let posts = {
 			let mut lock = self.posts.lock().unwrap();
 			if lock.len() >= MAX_CONNECTED_POSTS {
@@ -47,16 +52,18 @@ impl Context {
 
 		Ok(connect_post(&self, &posts).await.map_err(|e|ConnectPostError::ReqwestError(e))?)
 	}
-	pub async fn connect_post_pop(&self, post: PostId) -> Result<ConnectPostResponse, ConnectPostError> {
-		let mut lock = self.posts.lock().unwrap();
-		// i know this is inefficient but who cares
-		if lock.len() >= MAX_CONNECTED_POSTS {
-			for _ in 0..(MAX_CONNECTED_POSTS - lock.len() + 1) {
-				lock.remove(0);
+	pub(crate) async fn connect_post_pop(&self, post: PostId) -> Result<ConnectPostResponse, ConnectPostError> {
+		let posts = {
+			let mut lock = self.posts.lock().unwrap();
+			// i know this is inefficient but who cares
+			if lock.len() >= MAX_CONNECTED_POSTS {
+				for _ in 0..(MAX_CONNECTED_POSTS - lock.len() + 1) {
+					lock.remove(0);
+				}
 			}
-		}
-		lock.push(post);
-
-		Ok(connect_post(&self, &lock.clone()).await.map_err(|e|ConnectPostError::ReqwestError(e))?)
+			lock.push(post);
+			lock.clone()
+		};
+		Ok(connect_post(&self, &posts).await.map_err(|e|ConnectPostError::ReqwestError(e))?)
 	}
 }

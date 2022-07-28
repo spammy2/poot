@@ -1,4 +1,4 @@
-use std::{sync::{Weak, Mutex, Arc}, cell::RefCell};
+use std::{sync::{Weak, Mutex, Arc, RwLock}, cell::RefCell};
 
 use crate::{
     model::id::{GroupId, PostId, UserId},
@@ -83,7 +83,7 @@ impl<'de> Deserialize<'de> for GeneralUpdateEvent {
 }
 
 pub(crate) struct GeneralUpdateSubscriber  {
-    pub ctx: Arc<Mutex<Option<Context>>>,
+    pub ctx: Arc<RwLock<Option<Context>>>,
 }
 
 impl Subscriber for GeneralUpdateSubscriber {
@@ -91,7 +91,7 @@ impl Subscriber for GeneralUpdateSubscriber {
         let event: GeneralUpdateEvent = serde_json::from_value(event).unwrap();
         match event {
             GeneralUpdateEvent::NewPostAdded(post) => {
-				let lock = self.ctx.lock().unwrap();
+				let lock = self.ctx.read().unwrap();
                 let ctx = lock.as_ref().expect("Value is not exist").clone();
 				drop(lock);
                 tokio::spawn(async move {

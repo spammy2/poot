@@ -9,21 +9,23 @@ use context::{Context, Subscriptions};
 use model::{
     post::{Post}, chat::Chat,
 };
-
-
-use serde::{Serialize};
-use simplesocket::{connect_socket, message::ConnectedResponse};
-use std::{sync::{Arc, Mutex, Weak}, cell::RefCell};
+use serde::{Serialize, Deserialize};
+use simplesocket::{connect_socket, message::{ConnectedResponse, ServerResponse}};
+use std::{sync::{Arc, Mutex, Weak, RwLock}, cell::RefCell};
 use subscriptions::general_update::*;
+
+use crate::model::{user::UserRaw, chat::ChatRaw};
+
 struct InitOptions {
     auth: Auth,
     events: Arc<dyn Events + Send + Sync>,
+	ctx: Arc<Mutex<Option<Context>>>,
 }
 
 #[async_trait]
 impl simplesocket::Events for InitOptions {
     async fn on_ready(&self, ss: Arc<simplesocket::context::Context>, _res: ConnectedResponse) {
-		let ctx_ref = Arc::new(Mutex::new(None));
+		let ctx_ref = Arc::new(RwLock::new(None));
 		
         let ctx = Context {
 			subscriptions: Subscriptions {
@@ -44,16 +46,43 @@ impl simplesocket::Events for InitOptions {
 			posts: Arc::new(Mutex::new(Vec::new())),
         };
 
-		let _ctx = ctx.clone();
-		{
-			// god fucking kill me please
-			let mut lock = ctx_ref.lock().unwrap();
-			lock.replace(_ctx);
-			drop(lock);
-		}
+		self.ctx.lock().unwrap().replace(ctx.clone()); // i think lock is immediatelly dropped
+		ctx_ref.write().unwrap().replace(ctx.clone());
 
         self.events.on_ready(ctx).await;
     }
+	async fn on_remote(&self, ss: Arc<simplesocket::context::Context>, res: simplesocket::message::RemoteResponse){
+		let ctx = self.ctx.lock().unwrap().as_ref().expect("Not init???").clone();
+		// https://stackoverflow.com/a/32790546/11309351 ??
+
+		#[derive(Deserialize)]
+		struct NewChat {
+			chat: ChatRaw,
+			users: Vec<UserRaw>,
+		}
+
+		#[derive(Deserialize)]
+		#[serde(tag = "type")]
+		enum StreamValue {
+			#[serde(rename = "chat")]
+			NewChat(NewChat)
+		}
+
+		match res.name.as_str() {
+			"stream" => {
+				let value: StreamValue = serde_json::from_value(res.data).unwrap();
+				match value {
+					StreamValue::NewChat(NewChat { chat, mut users }) => {
+						let chat = Chat::from_raw(chat, users.remove(0).into());
+						ctx.events.on_chat(ctx.clone(), chat).await;
+					}
+				}
+			},
+			_ => {
+				println!("unknown {:?}", res)
+			}
+		}
+	}
     async fn on_close(&self, _ctx: Arc<simplesocket::context::Context>) {
         println!("closed");
     }
@@ -110,6 +139,7 @@ impl Client {
             InitOptions {
                 events: Arc::new(events),
                 auth,
+				ctx: Arc::new(Mutex::new(None)),
             },
         )
         .await;
@@ -118,6 +148,8 @@ impl Client {
 
 #[cfg(test)]
 mod test {
+    use crate::model::id::UserId;
+
     use super::*;
     use dotenv::dotenv;
     use std::env;
@@ -126,13 +158,16 @@ mod test {
     #[async_trait]
     impl Events for BotEvents {
         async fn on_post(&self, ctx: Context, post: Post) {
-			post.connect(&ctx).await.unwrap();
-            if post.content == "test create post" {
-				let p = post.create_chat(&ctx, "test receive message".to_owned()).await;
-				match p {
-					Ok(chat_id) => println!("Created chat {}", chat_id),
-					Err(e) => println!("Error: {}", e),
-				}
+			post.connect_pop(&ctx).await.unwrap();
+			let p = post.create_chat(&ctx, "post event and connected to chat").await;
+			match p {
+				Ok(chat_id) => println!("Created chat {}", chat_id),
+				Err(e) => println!("Error: {}", e),
+			}
+		}
+		async fn on_chat(&self, ctx: Context, chat: Chat) {
+			if !chat.author.is_self(&ctx) {
+				chat.post_id.create_chat(&ctx, format!("Received chat from {}", chat.author.username).as_str()).await.unwrap();
 			}
 		}
         async fn on_ready(&self, ctx: Context) {

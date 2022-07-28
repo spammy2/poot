@@ -100,6 +100,10 @@ impl<T> From<&str> for Id<T> {
     }
 }
 
+pub trait AsId<T> {
+	fn as_id(&self) -> Id<T>;
+}
+
 pub type UserId = Id<User>;
 pub type GroupId = Id<Group>;
 pub type PostId = Id<Post>;

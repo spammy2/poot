@@ -2,15 +2,18 @@
 
 use serde::Deserialize;
 
-use super::id::{UserId};
+use crate::Auth;
+use crate::context::Context;
+
+use super::id::{UserId, Id, AsId};
 use super::role::{Role, RoleOrRoles};
 
 #[derive(Debug)]
 pub struct User {
-    id: UserId,
-    username: String,
-    roles: Vec<Role>,
-	settings: PartialUserSettings,
+    pub id: UserId,
+    pub username: String,
+    pub roles: Vec<Role>,
+	pub settings: PartialUserSettings,
 }
 
 #[derive(Clone, Deserialize,Debug)]
@@ -32,6 +35,15 @@ impl From<UserSettings> for PartialUserSettings {
 	fn from(settings: UserSettings) -> Self {
 		PartialUserSettings {
 			avatar_id: settings.avatar_id
+		}
+	}
+}
+
+impl User {
+	pub fn is_self(&self, ctx: &Context) -> bool {
+		match &ctx.auth {
+			Auth::Token { user_id, .. } => UserId::from(user_id.as_ref()) == self.id,
+			_ => false,
 		}
 	}
 }
