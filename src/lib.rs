@@ -11,6 +11,7 @@ use model::{
 };
 
 
+use serde::{Serialize};
 use simplesocket::{connect_socket, message::ConnectedResponse};
 use std::{sync::Arc};
 use subscriptions::general_update::*;
@@ -22,19 +23,21 @@ struct InitOptions {
 #[async_trait]
 impl simplesocket::Events for InitOptions {
     async fn on_ready(&self, ctx: Arc<simplesocket::context::Context>, _res: ConnectedResponse) {
-        let ctx = Arc::new(Context {
+        let ctx = Context {
             simplesocket: ctx,
             client: Arc::new(reqwest::Client::new()),
             events: self.events.clone(),
             auth: self.auth.clone(),
-        });
+        };
 
         let ss = ctx.simplesocket.clone();
 
+		println!("subscribing ss");
         ss.subscribe(
             GeneralUpdate {
                 location: GeneralUpdateLocation::Home,
                 groups: vec![],
+				auth: self.auth.clone(),
             },
             GeneralUpdateSubscriber { ctx: ctx.clone() },
         )
@@ -47,14 +50,24 @@ impl simplesocket::Events for InitOptions {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone,Serialize)]
+#[serde(untagged)]
 pub enum Auth {
+	// too hard to implement, also discouraged by robot
     // Username{
     // 	username: String,
     // 	password: String,
     // },
     Token { user_id: String, token: String },
     None,
+}
+impl Auth {
+	fn is_none(&self) -> bool {
+		match self {
+			Auth::None => true,
+			_ => false,
+		}
+	}
 }
 
 impl ToString for Auth {
@@ -68,10 +81,10 @@ impl ToString for Auth {
 
 #[async_trait]
 pub trait Events {
-    async fn on_post(&self, _context: Arc<Context>, _post: Post) {
+    async fn on_post(&self, _context: Context, _post: Post) {
         // ...
     }
-    async fn on_ready(&self, _context: Arc<Context>) {
+    async fn on_ready(&self, _context: Context) {
         // ...
     }
 }
@@ -102,27 +115,34 @@ mod test {
     struct BotEvents;
     #[async_trait]
     impl Events for BotEvents {
-        async fn on_post(&self, _context: Arc<Context>, post: Post) {
-            println!("{:?}", post);
-        }
-        async fn on_ready(&self, context: Arc<Context>) {
-            let post = context
-                .create_post(CreatePostBody {
-                    content: "it's like magic but also really shitty at the same time".to_string(),
-                    // group_id: Some(GroupId::from("620722323f99d655b9afe2fa")),
-                    group_id: None,
-                    images: vec![],
-                })
-                .await;
+        async fn on_post(&self, ctx: Context, post: Post) {
+            if post.content == "test create post" {
+				let p = post.create_chat(&ctx, "test receive message".to_owned()).await;
+				match p {
+					Ok(chat_id) => println!("Created chat {}", chat_id),
+					Err(e) => println!("Error: {}", e),
+				}
+			}
+		}
+        async fn on_ready(&self, ctx: Context) {
+			println!("ready");
+            // let post = ctx
+            //     .create_post(CreatePostBody {
+            //         content: "test create post".to_string(),
+            //         // group_id: Some(GroupId::from("620722323f99d655b9afe2fa")),
+            //         group_id: None,
+            //         images: vec![],
+            //     })
+            //     .await;
             // tf it's not returning
-            println!("FINISHED {:?}", post);
+            // println!("FINISHED {:?}", post);
         }
     }
 
     #[tokio::test]
     pub async fn test() {
         dotenv().ok();
-        let _client = Client::new(
+        Client::new(
             Auth::Token {
                 user_id: env::var("USER_ID").unwrap(),
                 token: env::var("TOKEN").unwrap(),

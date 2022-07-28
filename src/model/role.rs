@@ -18,6 +18,12 @@ pub enum RoleOrRoles {
     Roles(Vec<Role>),
 }
 
+impl Default for RoleOrRoles {
+	fn default() -> Self {
+		RoleOrRoles::Roles(vec![])
+	}
+}
+
 impl Into<Vec<Role>> for RoleOrRoles {
     fn into(self) -> Vec<Role> {
         match self {

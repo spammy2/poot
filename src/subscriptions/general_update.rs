@@ -1,26 +1,40 @@
-use std::sync::Arc;
-
 use crate::{
     model::id::{GroupId, PostId, UserId},
-    Context,
+    Context, Auth,
 };
 use serde::{de::Error, Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Value, json};
 use simplesocket::context::Subscriber;
 
 #[derive(Serialize)]
 pub enum GeneralUpdateLocation {
+	#[serde(rename = "home")]
     Home,
 }
 
 #[derive(Serialize)]
-#[serde(tag = "Task")]
+#[serde(tag = "task", rename="general")]
 pub struct GeneralUpdate {
-    #[serde(rename = "Location")]
+    #[serde(rename = "location")]
     pub location: GeneralUpdateLocation,
-    #[serde(rename = "Groups")]
+    #[serde(rename = "groups")]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub groups: Vec<GroupId>,
+
+	#[serde(skip_serializing_if = "Auth::is_none")]
+	#[serde(flatten)]
+	pub auth: Auth,
+}
+
+#[test]
+fn test_ser(){
+	let general_update = GeneralUpdate {
+		location: GeneralUpdateLocation::Home,
+		groups: vec![],
+		auth: Auth::Token { user_id: "6066b99198895e660082965b".to_owned(), token: "joaojifaeijofiojawfoijaw".to_owned() },
+	};
+	let json = serde_json::to_string(&general_update).unwrap();
+	println!("{}", json);
 }
 
 #[derive(Deserialize, Debug)]
@@ -31,6 +45,17 @@ pub struct NewPostAdded {
     pub user_id: UserId,
     #[serde(rename = "_id")]
     pub post_id: PostId,
+}
+
+#[test]
+fn test_new_post_deser(){
+	let json = json!({
+		"Timestamp": 1658965141339 as u64,
+		"UserID": "622fb3400c9eb9061377ddda",
+		"_id": "62e1cc95285e4588ae587085"
+	});
+	let new_post_added: NewPostAdded = serde_json::from_value(json).unwrap();
+	println!("{:?}", new_post_added);
 }
 
 #[derive(Debug)]
@@ -46,9 +71,9 @@ impl<'de> Deserialize<'de> for GeneralUpdateEvent {
         let v = serde_json::Value::deserialize(deserializer)?;
         let v = v.as_object().ok_or(Error::custom("shit"))?;
 
-        match v.get("Type").unwrap().as_str().unwrap() {
-            "NewPostAdded" => Ok(GeneralUpdateEvent::NewPostAdded(
-                serde_json::from_value(v.get("NewPostData").unwrap().to_owned()).unwrap(),
+        match v.get("type").unwrap().as_str().unwrap() {
+            "newpost" => Ok(GeneralUpdateEvent::NewPostAdded(
+                serde_json::from_value(v.get("post").unwrap().to_owned()).unwrap(),
             )),
             _ => Err(Error::custom("Not a valid type")),
         }
@@ -56,7 +81,7 @@ impl<'de> Deserialize<'de> for GeneralUpdateEvent {
 }
 
 pub(crate) struct GeneralUpdateSubscriber {
-    pub ctx: Arc<Context>,
+    pub ctx: Context,
 }
 
 impl Subscriber for GeneralUpdateSubscriber {
@@ -67,7 +92,7 @@ impl Subscriber for GeneralUpdateSubscriber {
                 let ctx = self.ctx.clone();
                 tokio::spawn(async move {
                     let post = ctx.get_post(post.post_id).await.unwrap();
-                    ctx.events.on_post(ctx.clone(), post);
+                    ctx.events.on_post(ctx.clone(), post).await;
                 });
             }
             _ => {

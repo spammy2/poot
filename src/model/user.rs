@@ -13,10 +13,21 @@ pub struct User {
 }
 
 #[derive(Deserialize)]
+pub struct PartialSettings {
+	#[serde(rename = "ProfilePic")]
+	pub avatar_id: String
+}
+
+#[derive(Deserialize)]
 pub struct UserRaw {
+	#[serde(rename = "_id")]
     pub id: UserId,
+	#[serde(rename = "User")]
     pub username: String,
+	#[serde(rename = "Role", default)]
     pub roles: RoleOrRoles,
+	#[serde(rename = "Settings")]
+	pub settings: PartialSettings
 }
 
 impl Into<User> for UserRaw {

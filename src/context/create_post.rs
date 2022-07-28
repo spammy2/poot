@@ -28,7 +28,7 @@ impl From<String> for CreatePostBody {
 }
 
 impl super::Context {
-    pub async fn create_post(&self, body: CreatePostBody) -> Result<Post, reqwest::Error> {
+    pub async fn create_post(&self, body: CreatePostBody) -> Result<PostId, reqwest::Error> {
         let CreatePostBody {
             content,
             group_id,
@@ -54,9 +54,8 @@ impl super::Context {
             .header("auth", self.auth.to_string())
             .multipart(form)
             .send()
-            .await?
-            .json::<PostId>()
-            .await?;
-        Ok(self.get_post(post_id).await?)
+            .await?.text().await?;
+		Ok(PostId::from(&post_id[..]))
+		// Ok(self.get_post(post_id).await?)
     }
 }

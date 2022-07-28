@@ -1,6 +1,8 @@
 pub mod create_post;
 pub mod me;
 pub mod get_post;
+pub mod create_chat;
+pub mod get_chat;
 
 use std::{sync::Arc};
 

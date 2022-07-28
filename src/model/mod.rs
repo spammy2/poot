@@ -5,3 +5,4 @@ pub mod post;
 pub mod role;
 pub mod status;
 pub mod user;
+pub mod chat;

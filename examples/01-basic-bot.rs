@@ -8,7 +8,7 @@ use std::sync::Arc;
 struct BotEvents;
 #[async_trait]
 impl Events for BotEvents {
-    async fn on_ready(&self, context: Arc<Context>) {
+    async fn on_ready(&self, context: Context) {
         let result = context
             .create_post(CreatePostBody::from(String::from("bread")))
             .await;

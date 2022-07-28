@@ -1,8 +1,8 @@
-use std::hash::{Hash, Hasher};
+use std::{hash::{Hash, Hasher}, fmt::Display};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::Visitor};
 
-use super::{group::Group, post::Post, user::User};
+use super::{group::Group, post::Post, user::User, chat::Chat};
 
 pub fn date_from_u64(id: u128) -> chrono::DateTime<chrono::Utc> {
     let time = id >> 8;
@@ -12,11 +12,37 @@ pub fn date_from_u64(id: u128) -> chrono::DateTime<chrono::Utc> {
     );
 }
 
-#[derive(Deserialize, Serialize, Debug)]
 pub struct Id<T> {
     phantom: std::marker::PhantomData<T>,
-    #[serde(with = "hex_id")]
     id: u128,
+}
+
+impl<T> Serialize for Id<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&format!("{:12x}", self.id))
+    }
+}
+
+impl<'de, T> Deserialize<'de> for Id<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+		struct HexVisitor<T>(std::marker::PhantomData<T>);
+		impl<'de,T> Visitor<'de> for HexVisitor<T> {
+			type Value = Id<T>;
+			fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<Id<T>, E> {
+				Ok(Id::from(s))
+			}
+			fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+				formatter.write_str("a hex string")
+			}
+		}
+
+		deserializer.deserialize_str::<HexVisitor<T>>(HexVisitor(std::marker::PhantomData))
+    }
 }
 
 impl<T> Hash for Id<T> {
@@ -51,6 +77,18 @@ impl<T> Id<T> {
     }
 }
 
+impl<T> std::fmt::Debug for Id<T> {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "{}", self.to_string())
+	}
+}
+
+impl<T> Display for Id<T> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "{}", self.to_string())
+	}
+}
+
 impl<T> From<&str> for Id<T> {
     fn from(id: &str) -> Self {
         Id {
@@ -60,39 +98,9 @@ impl<T> From<&str> for Id<T> {
     }
 }
 
+
+
 pub type UserId = Id<User>;
 pub type GroupId = Id<Group>;
 pub type PostId = Id<Post>;
-
-pub mod hex_id {
-    use serde::de::Visitor;
-    use serde::Deserializer;
-    use serde::Serializer;
-
-    pub fn serialize<S>(val: &u128, s: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        s.serialize_str(&format!("{:12x}", val))
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<u128, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct HexVisitor;
-        impl<'de> Visitor<'de> for HexVisitor {
-            type Value = u128;
-            fn visit_str<E: serde::de::Error>(self, s: &str) -> Result<u128, E> {
-                println!("{}", s);
-                u128::from_str_radix(s, 16).map_err(|_| serde::de::Error::custom("Failed to parse"))
-            }
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                formatter.write_str("a hex string")
-            }
-        }
-
-        deserializer.deserialize_str(HexVisitor)
-    }
-}
+pub type ChatId = Id<Chat>;
