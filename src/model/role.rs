@@ -1,12 +1,13 @@
 use serde::{Deserialize};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug,Clone,Copy)]
 pub enum Role {
     Owner,
     Developer,
     Tester,
     Moderator,
-
+	Contributor,
+	Verified,
     #[serde(rename = "Bug Hunter")]
     BugHunter,
 }

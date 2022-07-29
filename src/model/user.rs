@@ -5,15 +5,15 @@ use serde::Deserialize;
 use crate::Auth;
 use crate::context::Context;
 
-use super::id::{UserId, Id, AsId};
+use super::id::UserId;
 use super::role::{Role, RoleOrRoles};
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct User {
     pub id: UserId,
     pub username: String,
     pub roles: Vec<Role>,
-	pub settings: PartialUserSettings,
+	pub avatar_id: String,
 }
 
 #[derive(Clone, Deserialize,Debug)]
@@ -40,6 +40,9 @@ impl From<UserSettings> for PartialUserSettings {
 }
 
 impl User {
+	pub fn avatar_url(&self) -> String {
+		format!("https://photop-content.s3.amazonaws.com/ProfileImages/{}", self.avatar_id)
+	}
 	pub fn is_self(&self, ctx: &Context) -> bool {
 		match &ctx.auth {
 			Auth::Token { user_id, .. } => UserId::from(user_id.as_ref()) == self.id,
@@ -72,7 +75,7 @@ impl Into<User> for UserRaw {
             id: self.id,
             username: self.username,
             roles: self.roles.into(),
-			settings: self.settings.into()
+			avatar_id: self.settings.avatar_id,
         }
     }
 }

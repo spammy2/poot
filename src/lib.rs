@@ -5,16 +5,16 @@ mod model;
 mod subscriptions;
 
 use async_trait::async_trait;
-use context::{Context, Subscriptions};
-use model::{
-    post::{Post}, chat::Chat,
-};
+use context::{Subscriptions};
 use serde::{Serialize, Deserialize};
 use simplesocket::{connect_socket, message::{ConnectedResponse, ServerResponse}};
 use std::{sync::{Arc, Mutex, Weak, RwLock}, cell::RefCell};
 use subscriptions::general_update::*;
 
 use crate::model::{user::UserRaw, chat::ChatRaw};
+
+pub use context::Context;
+pub use model::{post::Post, chat::Chat, user::User, client_user::ClientUser, id::{Id,UserId,PostId,ChatId}};
 
 struct InitOptions {
     auth: Auth,

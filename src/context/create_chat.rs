@@ -29,7 +29,6 @@ impl super::Context {
             .await?
             .text()
             .await?;
-		println!("{}", chat_id);
 		Ok(ChatId::from(&chat_id[..]))
     }
 }

@@ -6,7 +6,7 @@ use super::{
 };
 use chrono::{serde::ts_milliseconds, DateTime, Utc};
 use serde::{Deserialize};
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Post {
     pub id: PostId,
     pub author: User,

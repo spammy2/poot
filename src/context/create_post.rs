@@ -45,7 +45,6 @@ impl super::Context {
             post_url
                 .query_pairs_mut()
                 .append_pair("groupid", &group_id.to_string());
-            println!("{}", group_id.to_string());
         }
 
         let post_id = self
